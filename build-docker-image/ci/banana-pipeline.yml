@@ -1,0 +1,104 @@
+###############################################################################
+
+resource_types:
+
+# This is not strictly needed since the `docker-image` resource is embedded in
+# Concourse 4.x itself (with 5.x things might change). On the other hand, by 
+# explicitly mentioning it as resource_type, we get the latest version.
+# Keep or remove this entry based on your use case.
+- name: docker-image
+  privileged: true
+  type: docker-image
+  source:
+    repository: concourse/docker-image-resource
+
+###############################################################################
+
+resources:
+
+- name: banana.git
+  type: git
+  source:
+    uri: https://github.com/marco-m/concourse-pipelines.git
+    paths: [build-docker-image]
+    ignore_paths: [build-docker-image/ci/img1]
+    branch: ((branch))
+
+- name: banana-img1.git
+  type: git
+  source:
+    uri: https://github.com/marco-m/concourse-pipelines.git
+    paths: [build-docker-image/ci/img1]
+    branch: ((branch))
+
+- name: banana-img1.docker
+  type: docker-image
+  source:
+    repository: marcomm/banana-img1
+    username: ((dockerhub-username))
+    password: ((dockerhub-password))
+
+###############################################################################
+
+jobs:
+
+- name: build-img
+  serial_groups: [img1]
+  plan:
+  - get: banana-img1.git
+    trigger: true
+  - put: banana-img1.docker
+    params:
+      build: banana-img1.git/build-docker-image/ci/img1
+      # We abuse the `tag_file` here to contain the static string `latest`.
+      # Together with `tag_prefix: ((branch))-`, it generates an image tag of
+      # the from `((branch))-latest`. This means that each new `put` of a given
+      # feature branch pipeline will override the previous image.
+      tag_prefix: ((branch))-
+      tag_file: banana-img1.git/build-docker-image/ci/img1/tag_file
+      # If on the other hand you want each `put` image not to overwrite the
+      # previous one, then use the following two lines instead.
+      #tag_prefix: ((branch))-
+      #tag_file: banana-img1.git/.git/short_ref
+
+- name: build
+  # The `serial_groups` is to avoid race conditions when a single commit
+  # changes code both in banana-img1.git and banana.git.
+  serial_groups: [img1]
+  plan:
+  - get: banana.git
+    trigger: true
+  - get: banana-img1.docker
+    trigger: true
+    passed: [build-img]
+  - task: build
+    image: banana-img1.docker
+    file: banana.git/build-docker-image/ci/build-task.yml
+
+# Although jobs `test-1` and `test-2` run in parallel and use the same docker
+# image of job `build`, there is no need to specify the `serial_groups` because
+# these jobs are already sequenced by the `passed [build]`.
+
+- name: test-1
+  plan:
+  - get: banana.git
+    trigger: true
+    passed: [build]
+  - get: banana-img1.docker
+    trigger: true
+    passed: [build]
+  - task: test
+    image: banana-img1.docker
+    file: banana.git/build-docker-image/ci/test-1-task.yml
+
+- name: test-2
+  plan:
+  - get: banana.git
+    trigger: true
+    passed: [build]
+  - get: banana-img1.docker
+    trigger: true
+    passed: [build]
+  - task: test
+    image: banana-img1.docker
+    file: banana.git/build-docker-image/ci/test-2-task.yml
