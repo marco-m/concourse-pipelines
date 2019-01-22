@@ -1,0 +1,209 @@
+= Temporary override of pipeline parameters
+:icons: font
+
+Sometimes we would like to override some parameters of a pipeline on a reversible/temporary manner, that is, without committing the changes to a git repository.
+
+WARNING: This makes sense only if each feature branch has its own short-lived pipeline. If on the other hand the project has only one permanent pipeline, for the master branch, the approach explained here is strongly discouraged because it bypasses the git repository, destroying the notion of _configuration as code_.
+
+For example, we are debugging a pipeline failure and we would like to temporarily change the build flags. We would like to avoid to temporarily commit these changes in the feature branch, to reduce the risk to then merge these changes to the master branch by mistake.
+
+We can obtain this using together the following features:
+
+* https://concourse-ci.org/setting-pipelines.html#pipeline-params[Pipeline \((params))]: the pipeline configuration can contain template variables in the form of `\((foo-bar))`. They will be replaced with YAML values populated by repeated `--var` or `--load-vars-from` flags.
+* The fact that `fly` allows to selectively override the pipeline params.
+* https://concourse-ci.org/tasks.html#task-params[Task params]: a key-value mapping of values that are exposed to the task via environment variables.
+
+== Tasks: inline or nested
+
+As a reminder, there are two ways to define a task in Concourse:
+
+inline:: The task is defined in the pipeline YAML file, using the `task/config` key. This has the advantage that everything is visible in a single file and you don't have to hit the git repo to use fly. On the other hand, it can get too long quickly and makes it impossible to use with `fly execute`.
+nested:: The task is defined in a separate YAML file and is referred to in the pipeline file with the `task/file` key. This has the opposite pros and cons of the inline task. It is easy to make the error to change a task file and use `fly set-pipeline`, forgetting that one has to commit and push the changes to the task file in order for them to be visible by Concourse.
+
+This document shows how to enable custom parameters for both types.
+
+== The default values
+
+We store the default values in a separate key/value pairs YAML file, `settings.yml`, that we pass to `fly` with the `--load-vars-from` flag. For this example, its contents are:
+
+```YAML
+greetings: default greeting
+fruits: default fruits
+```
+
+== The simplest possible pipeline
+
+Assuming that the pipeline file is called `nested-param-pipeline.yml`, the simplest possible has only one task, inline:
+
+```YAML
+---
+jobs:
+- name: hello
+  plan:
+  - task: inline
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: {repository: alpine}
+      run:
+        path: /bin/sh
+        args:
+          - -c
+          - |
+            set -o errexit
+            echo "Running from inline task"
+            echo "FRUITS: $FRUITS"
+            echo "GREETINGS: $GREETINGS"
+    params:
+      FRUITS: ((fruits))
+      GREETINGS: ((greetings))
+```
+
+If we want to use the default values for `((fruits))` and `((greetings))`, we set the pipeline as follows:
+
+```
+fly -t vm set-pipeline -p nested-param -c nested-param-pipeline.yml \
+    -l settings.yml
+```
+
+If on the other hand we want to partially override, we keep passing `settings.yml` (otherwhise we would loose the value for `((fruits))`) and we override `((greetings))` as follows:
+
+```
+fly -t vm set-pipeline -p nested-param -c nested-param-pipeline.yml \
+    -l settings.yml \
+    -v "greetings=custom greetings"
+```
+
+== A more realistic example
+
+A more realistic example has a nested task. We just copy and paste the same task configuration of the inline example and put it in a separate file, `nested-param-task.yml`:
+
+```YAML
+---
+platform: linux
+image_resource:
+  type: docker-image
+  source: {repository: alpine}
+run:
+  path: /bin/sh
+  args:
+    - -c
+    - |
+      set -o errexit
+      echo "Running from nested task"
+      echo "FRUITS: $FRUITS"
+      echo "GREETINGS: $GREETINGS"
+params:
+  FRUITS: ((fruits))
+  GREETINGS: ((greetings))
+```
+
+The *gotcha* is that in the pipeline we have to repeat the `params` stanza, otherwhise they are not propagated. Thinking about it, it makes sense, since `fly` changes only the content of the pipeline file itself, not of the tasks files referred from it.
+
+We also have to introduce the git resource where we store the task file:
+
+```YAML
+---
+resources:
+- name: concourse-pipelines.git
+  type: git
+  source:
+    uri: https://github.com/marco-m/concourse-pipelines.git
+    branch: master
+
+jobs:
+- name: hello
+  plan:
+  - get: concourse-pipelines.git
+    trigger: false
+  - task: inline
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: {repository: alpine}
+      run:
+        path: /bin/sh
+        args:
+          - -c
+          - |
+            set -o errexit
+            echo "Running from inline task"
+            echo "FRUITS: $FRUITS"
+            echo "GREETINGS: $GREETINGS"
+    params:
+      FRUITS: ((fruits))
+      GREETINGS: ((greetings))
+  - task: nested
+    file: concourse-pipelines.git/nested-param/nested-param-task.yml
+    params:
+      FRUITS: ((fruits))
+      GREETINGS: ((greetings))
+
+```
+
+=== Final run with default value
+
+The sequence
+
+```
+fly -t vm set-pipeline -p nested-param -c nested-param-pipeline.yml \
+    -l settings.yml
+fly -t vm unpause-pipeline -p nested-param
+fly -t vm trigger-job -j nested-param/hello -w
+```
+
+Will print:
+
+```
+Running from inline task
+FRUITS: default fruits
+GREETINGS: default fruits
+
+Running from nested task
+FRUITS: default fruits
+GREETINGS: default fruits
+```
+
+=== Final run with custom temporary value
+
+The sequence
+
+```
+fly -t vm set-pipeline -p nested-param -c nested-param-pipeline.yml \
+    -l settings.yml \
+    -v "greetings=custom greetings"
+fly -t vm unpause-pipeline -p nested-param
+fly -t vm trigger-job -j nested-param/hello -w
+```
+
+Will print:
+
+```
+Running from inline task
+FRUITS: default fruits
+GREETINGS: custom greetings
+
+Running from nested task
+FRUITS: default fruits
+GREETINGS: custom greetings
+```
+
+== How long will the _temporary_ override last ?
+
+Once we override the value of `greetings`, for how long will the override last ?
+
+It will last until a new `fly set-pipeline` with the default values will be called, so this _temporary_ can actually last a long time!
+
+Note that the override will survive also if we push a commit that changes the pipeline file! The reason is not specific to the technique explained here, it is related to the fact that each change to a pipeline file must be declared to Concourse via `fly set-pipeline`. This can be confusing, since on the other hand, changes to task or script files will be picked up without intervention. Said in another way, Concourse currently (January 2019) doesn't support loading the pipeline file from a repository, as opposed to, for example, `.travis.yml`.
+
+To know more about this topic, have a look at https://www.orsolabs.com/post/bootstrapping-concourse-pipelines/[Boostrapping Concourse pipelines].
+
+== Source code
+
+The full source code is available in the https://github.com/marco-m/concourse-pipelines/tree/master/nested-param[concourse-pipelines] repository.
+
+== WRITEME
+
+More in general, how to change params/env vars with fly. For example show fly execute and env vars.

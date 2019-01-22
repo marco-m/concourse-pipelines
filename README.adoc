@@ -1,0 +1,3 @@
+= Sample pipeline patterns for Concourse
+
+* <<nested-param/README.adoc#, Temporary override of pipeline parameters>>

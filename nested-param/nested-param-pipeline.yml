@@ -1,0 +1,36 @@
+---
+resources:
+- name: concourse-pipelines.git
+  type: git
+  source:
+    uri: https://github.com/marco-m/concourse-pipelines.git
+    branch: master
+
+jobs:
+- name: hello
+  plan:
+  - get: concourse-pipelines.git
+    trigger: false
+  - task: inline
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: {repository: alpine}
+      run:
+        path: /bin/sh
+        args:
+          - -c
+          - |
+            set -o errexit
+            echo "Running from inline task"
+            echo "FRUITS: $FRUITS"
+            echo "GREETINGS: $GREETINGS"
+    params:
+      FRUITS: ((fruits))
+      GREETINGS: ((greetings))
+  - task: nested
+    file: concourse-pipelines.git/nested-param/nested-param-task.yml
+    params:
+      FRUITS: ((fruits))
+      GREETINGS: ((greetings))
