@@ -1,3 +1,4 @@
 = Sample pipeline patterns for Concourse
 
 * <<nested-param/README.adoc#, Temporary override of pipeline parameters>>
+* <<fan-out/README.adoc#, Simple parallel fan-out>>

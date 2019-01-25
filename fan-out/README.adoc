@@ -1,0 +1,5 @@
+= Simple fan-out
+
+With Concourse, parallel job fan-out is the default behavior. See the pipeline file in this directory.
+
+image::fan-out.png[]
