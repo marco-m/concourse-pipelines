@@ -1,0 +1,14 @@
+---
+platform: linux
+# NOTE The image is overridden by the pipeline file!
+image_resource:
+  type: docker-image
+  source: {repository: marcomm/project-x-img-1}
+run:
+  path: /bin/sh
+  args:
+    - -c
+    - |
+      set -o errexit
+      echo "Hello I should be building"
+      tree
