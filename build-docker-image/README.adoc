@@ -1,19 +1,14 @@
 = WIP Building a Docker image inline with the pipeline which consumes it
 
-image::pipeline.png[]
-
 WARNING: This is work in progress!
+
+
+image::pipeline.png[]
 
 == Preparation
 
-1. Replace each occurrence of:
-```YAML
-  source: {repository: marcomm/banana-img1}
-```
-with your Docker registry/repository.
-
+1. Replace each occurrence of `source: {repository: marcomm/banana-img1}` with your Docker registry/repository.
 2. Change the name of the git repositories and git resources accordingly to your project.
-
 3. Set following parameters in your secret store:
 
 ```
@@ -30,7 +25,7 @@ vault kv put /concourse/main/dockerhub-password value=MY_PASSWORD
 
 == Usage  
 
-This workflow enables to use a feature branch to test the changes to the Docker images before merging to master branch. As such, we assume one master pipeline and one pipeline per feature branch.
+This workflow enables to use a feature branch to test the changes to the Docker image(s) before merging to master branch. As such, we assume one master pipeline and one pipeline per feature branch.
 
 * pipeline for master branch: `banana-master`
 * pipeline for feature branch `feat-foo`: `banana-feat-foo`
@@ -51,56 +46,47 @@ fly -t vm set-pipeline -p banana-(git rev-parse --abbrev-ref HEAD) \
     -v branch=(git rev-parse --abbrev-ref HEAD)
 ```
 
-= questions
+You are set!
 
-== 1 pipeline (build images and do the real business) or 2 (one to build the image and the other to do the real business) ?
+Work on the feature branch until the pipeline behaves as expected. When you merge to master branch, in case the Dockerfile has changed, the master pipeline will build a new Docker image.
 
-== is it possible to support feature branches or only staging and master ?
+== Conventions and build-up of images in the Docker registry
 
-Let's start simple with only staging and master.
-[] NOTE The image should be built ONLY if there is a change, NOT on each change of the repo!!! How do I do this ? With a path filter on the git repo ???
+Note that this approach will always build one Docker image per feature branch at the moment of creation of the feature branch pipeline. This build can be useless, in the sense that it will happen (but only once!) also if the feature branch will not change at all the Dockerfile.
 
-set BRANCH feat-123
+This also means that the Docker repository will gain one image per feature branch. It will be only one, because the docker-image-resource in the pipeline is configured in aw ay to generate tags of the form
 
-fly -t vm set-pipeline -p banana-$BRANCH \
-    -c build-docker-image-pipeline.yml -v branch=$BRANCH
+```
+((branch))-latest
+```
 
-fly -t vm destroy-pipeline -p banana-$BRANCH
+so in case more that one images are built in the lifetime of the same branch, the new one will overwrite the previous one. See also the comments in the pipeline file.
 
-== how to delete from the registry old feature branch images ?
+You may want to periodically clean-up the image repository, see section <<Deleting images from a registry>>.
 
-cannot delete at the end of each run, because it needs the image!
-if i do nothing lot of images build up
-but if i use a tag like $BRANCH-latest maybe it works ? if it overrides, then 
-i have 1 image per feat branch only. still need to be cleaned out of band by a reaper that deletes the image when the branch disappears from the source git repo.
+== Deleting images from a registry
 
-also need  serial_group to avoid the race when a commit changes files detected by both git resources, for example a chaneg to the dockerfile adding a tool and a change to the build script using the new tool. I confirmed the race in commit wip6. Let's see if I can remove it with serial_gropus. The race is not the end of the world because then a new image will trigger the build again, making it successful at the end.
+According to https://medium.com/@mcvidanagama/cleanup-your-docker-registry-ef0527673e3a
 
-the inage should have the following tags
-
-- the commit tag of the git repo, tag_file: banana-img-1.git/.git/ref
-- a tag like $BRANCH-latest
-
-mhh if I do this, I cannot overwrite the previous image and I geberate loads of crap.
-
-TODO
-
-to enable the tag_file, I must have a more precise `paths` filter, I have to put everythn that impacts the image in a directory
-
-= misc  
-
-deleting images from a registry
-https://medium.com/@mcvidanagama/cleanup-your-docker-registry-ef0527673e3a
-
-ask for deletion
+1. Ask for deletion
+```
 curl -v -X DELETE http://registryhost:reigstryport/v2/${docker_image_name}/manifests/${digest}
+```
+2. run garbage collector, it seems there are 2 possibilities
 
-run garbage collector, it seems there are 2 possibilities
-
-on the registry
-
+*
+```
 REGISTRY_STORAGE_DELETE_ENABLED=true docker exec registry bin/registry garbage-collect /etc/docker/registry/config.yml
-
-or
-
+```
+*
+```
 docker system prune
+```
+
+== TODO
+
+- explain better the 2 conceptual types of docker images: one that is consumed by the pipeline itself (eg a docker image with the build tools) and one that is the product of the pipeline (eg a docker image that contains the code built by the pipeline). The versioing changes in this case, each product must have its own tag, we cannot overwrite.
+- how to use this approach to build and test a concourse resource.
+- how to use this approach if the final product of a pipeline is a docker image itself.
+- using fly execute with this setup, how to name the images in the task files.
+- is there a way to have the master pipeline with embedded image build, the feat branch pipeline without and a separate pipeline only to build the image ? This would reduce the load of resource checking for the secondary git repo for the vast majority of feat branches, that do not need to change the dockerfile. As usual, we would like to do this without any code duplication to avoid sync errors.
