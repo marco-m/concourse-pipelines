@@ -19,6 +19,7 @@ dockerhub-password
 For example for Vault:
 
 ```
+export VAULT_ADDR="https://YOUR_VAULT_URL"
 vault kv put /concourse/main/dockerhub-username value=MY_USER
 vault kv put /concourse/main/dockerhub-password value=MY_PASSWORD
 ```

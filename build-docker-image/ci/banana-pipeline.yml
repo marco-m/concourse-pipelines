@@ -24,14 +24,14 @@ resources:
     ignore_paths: [build-docker-image/ci/img1]
     branch: ((branch))
 
-- name: banana-img1.git
+- name: banana-work-img-1.git
   type: git
   source:
     uri: https://github.com/marco-m/concourse-pipelines.git
     paths: [build-docker-image/ci/img1]
     branch: ((branch))
 
-- name: banana-img1.docker
+- name: banana-work-img-1.docker
   type: docker-image
   source:
     repository: marcomm/banana-img1
@@ -42,37 +42,37 @@ resources:
 
 jobs:
 
-- name: build-img
+- name: work-imgs
   serial_groups: [img1]
   plan:
-  - get: banana-img1.git
+  - get: banana-work-img-1.git
     trigger: true
-  - put: banana-img1.docker
+  - put: banana-work-img-1.docker
     params:
-      build: banana-img1.git/build-docker-image/ci/img1
+      build: banana-work-img-1.git/build-docker-image/ci/img1
       # We abuse the `tag_file` here to contain the static string `latest`.
       # Together with `tag_prefix: ((branch))-`, it generates an image tag of
       # the from `((branch))-latest`. This means that each new `put` of a given
       # feature branch pipeline will override the previous image.
       tag_prefix: ((branch))-
-      tag_file: banana-img1.git/build-docker-image/ci/img1/tag_file
+      tag_file: banana-work-img-1.git/build-docker-image/ci/img1/tag_file
       # If on the other hand you want each `put` image not to overwrite the
       # previous one, then use the following two lines instead.
       #tag_prefix: ((branch))-
-      #tag_file: banana-img1.git/.git/short_ref
+      #tag_file: banana-work-img-1.git/.git/short_ref
 
 - name: build
   # The `serial_groups` is to avoid race conditions when a single commit
-  # changes code both in banana-img1.git and banana.git.
+  # changes code both in banana-work-img-1.git and banana.git.
   serial_groups: [img1]
   plan:
   - get: banana.git
     trigger: true
-  - get: banana-img1.docker
+  - get: banana-work-img-1.docker
     trigger: true
-    passed: [build-img]
+    passed: [work-imgs]
   - task: build
-    image: banana-img1.docker
+    image: banana-work-img-1.docker
     file: banana.git/build-docker-image/ci/build-task.yml
 
 # Although jobs `test-1` and `test-2` run in parallel and use the same docker
@@ -84,11 +84,11 @@ jobs:
   - get: banana.git
     trigger: true
     passed: [build]
-  - get: banana-img1.docker
+  - get: banana-work-img-1.docker
     trigger: true
     passed: [build]
   - task: test
-    image: banana-img1.docker
+    image: banana-work-img-1.docker
     file: banana.git/build-docker-image/ci/test-1-task.yml
 
 - name: test-2
@@ -96,9 +96,9 @@ jobs:
   - get: banana.git
     trigger: true
     passed: [build]
-  - get: banana-img1.docker
+  - get: banana-work-img-1.docker
     trigger: true
     passed: [build]
   - task: test
-    image: banana-img1.docker
+    image: banana-work-img-1.docker
     file: banana.git/build-docker-image/ci/test-2-task.yml
