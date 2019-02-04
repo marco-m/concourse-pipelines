@@ -55,7 +55,7 @@ Work on the feature branch until the pipeline behaves as expected. When you merg
 
 Note that this approach will always build one Docker image per feature branch at the moment of creation of the feature branch pipeline. This build can be useless, in the sense that it will happen (but only once!) also if the feature branch will not change at all the Dockerfile.
 
-This also means that the Docker repository will gain one image per feature branch. It will be only one, because the docker-image-resource in the pipeline is configured in aw ay to generate tags of the form
+This also means that the Docker repository will gain one image per feature branch. It will be only one, because the docker-image-resource in the pipeline is configured in a way to generate tags of the form
 
 ```
 ((branch))-latest
