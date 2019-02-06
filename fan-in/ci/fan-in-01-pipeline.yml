@@ -1,0 +1,40 @@
+# This file is fan-in/ci/fan-in-01-pipeline.yml
+
+test-task-config: &test-task-config
+  platform: linux
+  image_resource:
+    type: docker-image
+    source: {repository: alpine}
+
+resources:
+
+- name: pear.git
+  type: git
+  source:
+    uri: https://github.com/marco-m/concourse-pipelines.git
+    branch: ((branch))
+
+jobs:
+
+- name: test-A
+  plan:
+  - get: pear.git
+    trigger: true
+  - task: test-A
+    config:
+      <<: *test-task-config
+      inputs:
+      - {name: pear.git}
+      run: {path: pear.git/fan-in/A/test-a.sh}
+
+- name: test-B
+  plan:
+  - get: pear.git
+    passed: [test-A]
+    trigger: true
+  - task: test-B
+    config:
+      <<: *test-task-config
+      inputs:
+      - {name: pear.git}
+      run: {path: pear.git/fan-in/B/test-b.sh}
