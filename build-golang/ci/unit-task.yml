@@ -1,0 +1,16 @@
+platform: linux
+
+image_resource:
+  type: registry-image
+  source: {repository: golang}
+
+inputs:
+- name: concourse-pipelines
+  path: gopath/src/github.com/marco-m/concourse-pipelines
+
+caches:
+- path: depspath/
+- path: gopath/pkg/
+
+run:
+  path: gopath/src/github.com/marco-m/concourse-pipelines/build-golang/ci/unit.sh
