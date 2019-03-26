@@ -1,0 +1,27 @@
+resources:
+
+- name: concourse-pipelines
+  type: git
+  source:
+    uri: https://github.com/marco-m/concourse-pipelines.git
+    branch: master
+    paths: [build-golang/*]
+
+###############################################################################
+
+jobs:
+
+- name: unit
+  plan:
+  - get: concourse-pipelines
+    trigger: true
+  - task: unit
+    file: concourse-pipelines/build-golang/ci/unit-task.yml
+
+- name: build
+  plan:
+  - get: concourse-pipelines
+    trigger: true
+    passed: [unit]
+  - task: build
+    file: concourse-pipelines/build-golang/ci/build-task.yml

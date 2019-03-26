@@ -1,5 +1,6 @@
 = Sample pipeline patterns for Concourse
 
 * <<nested-param/README.adoc#, Temporary override of pipeline parameters>>
+* <<build-golang/README.adoc#, Building Golang, with and without Go modules>>
 * <<fan-out/README.adoc#, Simple parallel fan-out>>
 * <<build-docker-image/README.adoc#, Building a Docker image inline with the pipeline which consumes it>>
