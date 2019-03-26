@@ -4,7 +4,7 @@ resources:
   type: git
   source:
     uri: https://github.com/marco-m/concourse-pipelines.git
-    branch: golang-pre-modules
+    branch: master
     paths: [build-golang/*]
 
 ###############################################################################

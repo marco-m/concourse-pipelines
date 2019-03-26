@@ -6,11 +6,10 @@ image_resource:
 
 inputs:
 - name: concourse-pipelines
-  path: gopath/src/github.com/marco-m/concourse-pipelines
 
 caches:
 - path: depspath/
 - path: gopath/pkg/
 
 run:
-  path: gopath/src/github.com/marco-m/concourse-pipelines/build-golang/ci/build.sh
+  path: concourse-pipelines/build-golang/ci/build.sh
