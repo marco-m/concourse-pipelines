@@ -1,4 +1,12 @@
 ---
+jobs:
+  - name: foo
+    plan:
+    - get: repo-commits
+      trigger: true
+    - get: repo-tags
+      trigger: true
+
 resources:
   - name: repo-commits
     type: git
