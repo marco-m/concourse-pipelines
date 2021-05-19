@@ -1,0 +1,18 @@
+---
+resources:
+  - name: repo-commits
+    type: git
+    icon: git
+    source:
+      uri: https://github.com/marco-m/concourse-pipelines.git
+      branch: foo
+      fetch_tags: true
+
+  - name: repo-tags
+    type: git
+    icon: git
+    source:
+      uri: https://github.com/marco-m/concourse-pipelines.git
+      branch: foo
+      fetch_tags: true
+      tag_filter: v*
