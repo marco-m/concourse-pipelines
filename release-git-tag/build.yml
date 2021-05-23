@@ -1,0 +1,34 @@
+---
+platform: linux
+image_resource:
+  type: registry-image
+  source:
+    repository: golang
+    tag: 1.16.4-alpine
+inputs:
+  - name: repo
+outputs:
+  - name: out
+run:
+  path: sh
+  args:
+    - -c
+    - |
+      set -e
+      #set -x
+
+      # This file is added by the git resource
+      VERSION=$(cat repo/.git/describe_ref)
+      LDFLAGS="-w -s -X main.version=$VERSION"
+
+      echo
+      echo "***** Building"
+      (cd repo/magic8ball && go build -ldflags="$LDFLAGS" .)
+
+      echo
+      echo "***** Smoke test"
+      repo/magic8ball/magic8ball
+
+      echo
+      echo "***** Moving artifacts to the output directory"
+      mv repo/magic8ball/magic8ball out/magic8ball-"$VERSION"
