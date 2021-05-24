@@ -1,6 +1,12 @@
 # Making a release triggered by a git tag
 
-![release from git tag pipeline](release-pipeline.png)
+Pipeline simple-release.yml:
+
+![simple release from git tag pipeline](simple.png)
+
+Pipeline multi-stage-release.yml:
+
+![multi stage release from git tag pipeline](multi-stage.png)
 
 For more details:
 * read the blog post [Concourse: making a release triggered by a git tag](WRITEME)

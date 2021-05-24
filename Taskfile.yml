@@ -1,0 +1,38 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  BRANCH:
+    sh: git branch --show-current
+
+tasks:
+  release-git-tag:
+    cmds:
+      - task: release-git-tag-simple
+      - task: release-git-tag-multi-stage
+
+  release-git-tag-simple:
+    cmds:
+      - task: set-pipeline
+        vars:
+          CFG: release-git-tag/simple-release.yml
+          NAME: "{{.TASK}}"
+
+  release-git-tag-multi-stage:
+    cmds:
+      - task: set-pipeline
+        vars:
+          CFG: release-git-tag/multi-stage-release.yml
+          NAME: "{{.TASK}}"
+
+  set-pipeline:
+    cmds:
+      - >
+        fly -t main set-pipeline
+        --non-interactive
+        -p "{{.NAME}}"
+        -c "{{.CFG}}"
+        -y branch="{{.BRANCH}}"
+        -y pipeline="{{.NAME}}"
+      - fly -t main unpause-pipeline -p "{{.NAME}}"

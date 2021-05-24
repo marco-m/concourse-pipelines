@@ -1,0 +1,22 @@
+---
+platform: linux
+image_resource:
+  type: registry-image
+  source:
+    repository: golang
+    tag: 1.16.4-alpine
+inputs:
+  - name: repo
+outputs:
+  - name: out
+run:
+  path: sh
+  args:
+    - -c
+    - |
+      set -e
+      #set -x
+
+      echo
+      echo "***** Unit testing"
+      (cd repo/magic8ball && go test -v .)

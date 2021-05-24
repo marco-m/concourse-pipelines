@@ -1,0 +1,86 @@
+---
+jobs:
+  - name: unit
+    plan:
+      - get: repo
+        trigger: true
+      - task: unit
+        file: repo/release-git-tag/unit.yml
+
+  - name: build
+    plan:
+      - get: repo
+        trigger: true
+        passed: [unit]
+      - task: build
+        file: repo/release-git-tag/build.yml
+      - put: builds
+        params: {file: out/magic8ball-*}
+
+  - name: promote
+    plan:
+      - get: selected
+        trigger: true
+      - put: releases
+        params: {file: selected/magic8ball-*}
+
+resources:
+  - name: repo
+    type: git
+    icon: git
+    source:
+      uri: https://github.com/marco-m/concourse-pipelines.git
+      branch: ((branch))
+      # This is needed to ensure that a tag added to a commit already seen by the resource
+      # (and thus registered in the concourse DB) is actually fetched each time instead of
+      # a random behavior... it is still flaky though :-/
+      fetch_tags: true
+
+  - name: builds
+    type: s3
+    icon: dump-truck
+    source:
+      bucket: concourse
+      # conventions:
+      # - top-level directory: `builds`
+      # - path in bucket: builds/<pipeline>/<branch>/<versioned-package>
+      # - regexp must match two types of suffixes:
+      #   - v0.0.0-4-gfe4af9a   when the commit doesn't have tags
+      #   - v0.0.1              when the commit has a tag
+      regexp: builds/((pipeline))/((branch))/magic8ball-v(\d+\.\d+\.\d+)(-.*)*
+      endpoint: ((s3-endpoint))
+      region_name: ((s3-region))
+      access_key_id: ((s3-access-key))
+      secret_access_key: ((s3-secret-key))
+
+  - name: selected
+    type: s3
+    icon: database-search
+    source:
+      bucket: concourse
+      # conventions: same as resource `builds` above, but regexp is different:
+      # - regexp must match only one type of suffix:
+      #   - v0.0.1  since we filter only builds on a tag
+      regexp: builds/((pipeline))/((branch))/magic8ball-v(\d+\.\d+\.\d+)
+      endpoint: ((s3-endpoint))
+      region_name: ((s3-region))
+      access_key_id: ((s3-access-key))
+      secret_access_key: ((s3-secret-key))
+
+  - name: releases
+    type: s3
+    icon: gift
+    source:
+      bucket: concourse
+      # conventions:
+      # - top-level directory: `releases`
+      # - path in bucket:
+      #   - no branch name, since this is a release!
+      #   - releases/<pipeline>/<versioned-package>
+      # - regexp must match only one type of suffix:
+      #   - v0.0.1  since we filter only builds on a tag
+      regexp: releases/((pipeline))/magic8ball-v(\d+\.\d+\.\d+)
+      endpoint: ((s3-endpoint))
+      region_name: ((s3-region))
+      access_key_id: ((s3-access-key))
+      secret_access_key: ((s3-secret-key))
